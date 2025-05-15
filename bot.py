@@ -1,3 +1,4 @@
+
 import os
 import logging
 from pytube import YouTube, Search
@@ -45,11 +46,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     url = query.data
     yt = YouTube(url)
-    # Send a button that opens YouTube link for streaming in Telegram:
-    buttons = [
-        [InlineKeyboardButton("Watch Video (stream)", url=yt.watch_url)]
-    ]
-    await query.edit_message_text(f"*{yt.title}*", reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+    streams = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc()
+
+    buttons = []
+    for s in streams:
+        buttons.append([
+            InlineKeyboardButton(
+                f"{s.resolution} - {round(s.filesize / (1024*1024), 2)} MB",
+                url=s.url
+            )
+        ])
+    # Add a stream button at the end
+    buttons.append([InlineKeyboardButton("Watch Video (stream)", url=yt.watch_url)])
+
+    msg = f"*{yt.title}*\n\nChoose a resolution to download or stream:"
+    await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
 
 async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.inline_query.query
