@@ -1,4 +1,3 @@
-
 import os
 import logging
 from pytube import YouTube, Search
@@ -22,9 +21,11 @@ TOKEN = os.getenv("BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
 
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send /search <keywords> or use inline: @YourBotName query")
+    await update.message.reply_text("Welcome! Use /search <keywords> or inline: @YourBotName <query>")
 
+# /search command
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args)
     if not query:
@@ -35,37 +36,43 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     results = search.results[:10]
 
     buttons = [
-        [InlineKeyboardButton(video.title[:50], callback_data=video.watch_url)]
+        [InlineKeyboardButton(video.title[:50], callback_data=video.video_id)]
         for video in results
     ]
+
     log_search(update.effective_user.id, query)
     await update.message.reply_text("Top results:", reply_markup=InlineKeyboardMarkup(buttons))
 
+# Button click handler
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    url = query.data
-    yt = YouTube(url)
+    video_id = query.data
+    yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
+    
     streams = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc()
-
     buttons = []
+
     for s in streams:
+        try:
+            size_mb = round(s.filesize / (1024 * 1024), 2)
+        except:
+            size_mb = "?"
         buttons.append([
-            InlineKeyboardButton(
-                f"{s.resolution} - {round(s.filesize / (1024*1024), 2)} MB",
-                url=s.url
-            )
+            InlineKeyboardButton(f"{s.resolution} - {size_mb} MB", url=s.url)
         ])
-    # Add a stream button at the end
+
     buttons.append([InlineKeyboardButton("Watch Video (stream)", url=yt.watch_url)])
 
     msg = f"*{yt.title}*\n\nChoose a resolution to download or stream:"
     await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
 
+# Inline search handler
 async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.inline_query.query
     if not query:
         return
+
     search = Search(query)
     results = search.results[:5]
 
@@ -86,6 +93,7 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     log_search(update.inline_query.from_user.id, query)
     await update.inline_query.answer(articles, cache_time=1)
 
+# Main entry point
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
